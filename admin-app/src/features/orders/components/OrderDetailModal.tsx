@@ -203,7 +203,7 @@ export const OrderDetailModal = ({
                       <div className="flex flex-col items-center">
                         <span
                           className={`inline-flex h-3 w-3 shrink-0 rounded-full ${
-                            index === 0
+                            index === historial.length - 1
                               ? "bg-emerald-500 ring-2 ring-emerald-500/30"
                               : "bg-zinc-600"
                           }`}

@@ -1,0 +1,22 @@
+﻿# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Node
+node_modules/
+dist/
+
+# Entornos
+.env
+.env.local
+
+# Binarios y herramientas
+*.exe
+ngrok*
+
+# Editor / SO
+.vscode/
+.idea/
+.DS_Store

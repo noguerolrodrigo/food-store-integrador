@@ -30,11 +30,12 @@ async def crear_pago(
             pago = service.crear_pago(data, current_user.id)
             pid = pago.pedido_id
             mp_status = pago.mp_status
+            owner_id = pago.pedido.usuario_id
             response = PagoRead.model_validate(pago)
 
         # RN-06: broadcast DESPUÉS del commit del UoW
         if mp_status == "approved":
-            await ws_manager.broadcast_pedido(pid, {
+            await ws_manager.broadcast_pedido(pid, owner_id, {
                 "event": "pago_confirmado",
                 "pedido_id": pid,
                 "estado_anterior": "PENDIENTE",
@@ -142,6 +143,7 @@ async def _procesar_notificacion_mp(request: Request) -> dict:
 
     result = None
     mp_status = None
+    owner_id = None
 
     try:
         with PagoUnitOfWork() as uow:
@@ -150,11 +152,12 @@ async def _procesar_notificacion_mp(request: Request) -> dict:
             if result:
                 pago, pedido_id, estado_anterior = result
                 mp_status = pago.mp_status
+                owner_id = pago.pedido.usuario_id
 
         # RN-06: broadcast DESPUÉS del commit del UoW
         if result and mp_status == "approved":
             _, pedido_id, estado_anterior = result
-            await ws_manager.broadcast_pedido(pedido_id, {
+            await ws_manager.broadcast_pedido(pedido_id, owner_id, {
                 "event": "pago_confirmado",
                 "pedido_id": pedido_id,
                 "estado_anterior": estado_anterior.value if estado_anterior else None,
