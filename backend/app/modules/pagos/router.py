@@ -195,3 +195,27 @@ def obtener_pago(
             )
 
         return PagoRead.model_validate(pago)
+async def reconciliar_pagos_loop(intervalo: int = 10):
+    """Tarea de fondo: cada N segundos busca en MP pagos aprobados de pedidos pendientes."""
+    import asyncio
+    while True:
+        await asyncio.sleep(intervalo)
+        try:
+            confirmados = []
+            with PagoUnitOfWork() as uow:
+                for pago, pedido_id, estado_anterior in PagoService(uow).reconciliar_pendientes():
+                    if estado_anterior is not None:
+                        confirmados.append((pedido_id, pago.pedido.usuario_id, estado_anterior))
+            for pedido_id, owner_id, estado_anterior in confirmados:
+                logging.info(f"[Reconciliacion] pedido {pedido_id} confirmado desde MP")
+                await ws_manager.broadcast_pedido(pedido_id, owner_id, {
+                    "event": "pago_confirmado",
+                    "pedido_id": pedido_id,
+                    "estado_anterior": estado_anterior.value,
+                    "estado_nuevo": "CONFIRMADO",
+                    "usuario_id": None,
+                    "motivo": None,
+                    "timestamp": datetime.utcnow().isoformat() + "Z",
+                })
+        except Exception as e:
+            logging.error(f"[Reconciliacion] Error: {e}", exc_info=True)

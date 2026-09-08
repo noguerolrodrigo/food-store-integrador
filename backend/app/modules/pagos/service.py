@@ -230,3 +230,32 @@ class PagoService:
         self.uow.session.add(pedido)
         self.uow.session.add(historial)
         self.uow.session.flush()
+    def reconciliar_pendientes(self) -> list[tuple[Pago, int, Optional[EstadoPedido]]]:
+        """Consulta a MP por pagos aprobados de pedidos PENDIENTE (reconciliación activa)."""
+        from sqlmodel import select
+        from app.modules.pedido.models import FormaPago
+
+        pendientes = self.uow.session.exec(
+            select(Pedido).where(
+                Pedido.estado == EstadoPedido.PENDIENTE,
+                Pedido.forma_pago == FormaPago.MERCADO_PAGO,
+            )
+        ).all()
+        if not pendientes:
+            return []
+
+        sdk = get_mp_sdk()
+        resultados = []
+        for pedido in pendientes:
+            try:
+                resp = sdk.payment().search({"external_reference": str(pedido.id)})
+                results = resp.get("response", {}).get("results", [])
+                aprobado = next((p for p in results if p.get("status") == "approved"), None)
+                if not aprobado:
+                    continue
+                r = self.procesar_webhook({"type": "payment", "data": {"id": aprobado["id"]}})
+                if r:
+                    resultados.append(r)
+            except Exception as e:
+                logging.warning(f"[Reconciliacion] pedido {pedido.id}: {e}")
+        return resultados    

@@ -48,13 +48,16 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Poblar seed data y COMMITEAR — sin commit los datos se pierden al cerrar sesión
+    import asyncio
+    from app.modules.pagos.router import reconciliar_pagos_loop
+
     with Session(engine) as session:
         seed_database(session)
         session.commit()
-    
-    yield
 
+    tarea = asyncio.create_task(reconciliar_pagos_loop())
+    yield
+    tarea.cancel()
 
 app = FastAPI(
     title="API Parcial FastAPI + SQLModel",

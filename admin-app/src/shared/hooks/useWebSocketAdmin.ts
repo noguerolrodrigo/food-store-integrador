@@ -15,7 +15,11 @@ export function useWebSocketAdmin(token: string | null) {
   useEffect(() => {
     if (!token) return;
 
+    let active = true;
+
     function connect() {
+      if (!active) return;
+
       if (wsRef.current) {
         wsRef.current.close();
       }
@@ -32,8 +36,6 @@ export function useWebSocketAdmin(token: string | null) {
         try {
           const data = JSON.parse(event.data) as Record<string, unknown>;
           console.log("[WS Admin] Evento recibido:", data);
-
-          // Invalidar queries de pedidos para forzar recarga
           queryClient.invalidateQueries({ queryKey: ["pedidos"] });
           queryClient.invalidateQueries({ queryKey: ["pedido", data.pedido_id] });
           queryClient.invalidateQueries({ queryKey: ["pedido-historial", data.pedido_id] });
@@ -43,6 +45,7 @@ export function useWebSocketAdmin(token: string | null) {
       };
 
       ws.onclose = () => {
+        if (!active) return; // cierre intencional: no reconectar
         console.log("[WS Admin] Desconectado, reconectando en 5s...");
         reconnectTimeoutRef.current = setTimeout(connect, 5000);
       };
@@ -55,6 +58,7 @@ export function useWebSocketAdmin(token: string | null) {
     connect();
 
     return () => {
+      active = false;
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }

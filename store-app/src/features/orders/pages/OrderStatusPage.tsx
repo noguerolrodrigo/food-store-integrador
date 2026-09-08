@@ -1,9 +1,12 @@
+
 import { useState, useEffect } from "react";
 import { useParams, useSearchParams, Link } from "react-router-dom";
 import { usePaymentStatus } from "../../pagos";
 import { useWebSocketOrder } from "../../../shared/hooks/useWebSocketOrder";
 import { Button } from "../../../shared/ui/Button";
 import { Alert } from "../../../shared/ui/Alert";
+import { useQueryClient } from "@tanstack/react-query";
+import { verifyPayment } from "../../pagos/services/paymentService";
 
 /* ─── Status Config ─── */
 const STATUS_CONFIG: Record<
@@ -99,6 +102,22 @@ export default function OrderStatusPage() {
   const { data: pago, isLoading, isError } = usePaymentStatus(pedidoId);
   const { lastEvent: wsEvent, status: wsStatus } = useWebSocketOrder(pedidoId);
   const [wsConfirmed, setWsConfirmed] = useState(false);
+
+  const queryClient = useQueryClient();
+  const paymentId = searchParams.get("payment_id");
+
+  // Al volver de MP, verificamos el pago contra su API sin esperar el webhook.
+  useEffect(() => {
+    if (!paymentId || !pedidoId) return;
+    verifyPayment(paymentId)
+      .then(() => {
+        queryClient.invalidateQueries({ queryKey: ["pago-status", pedidoId] });
+        queryClient.invalidateQueries({ queryKey: ["mis-pedidos"] });
+      })
+      .catch(() => {
+        // si falla, el webhook o el polling lo resuelven después
+      });
+  }, [paymentId, pedidoId, queryClient]);
 
   useEffect(() => {
     if (wsEvent?.event === "pago_confirmado" || wsEvent?.event === "estado_cambiado") {
